@@ -1,8 +1,8 @@
 {
-  "name": "zalominiapp",
+  "name": "Todo List",
   "private": true,
   "version": "1.0.0",
-  "description": "ZaloMiniApp",
+  "description": "Todo List",
   "repository": "",
   "license": "UNLICENSED",
   "browserslist": [
@@ -20,11 +20,14 @@
     "build:css": "postcss src/css/tailwind.css -o src/css/styles.css"
   },
   "dependencies": {
+    "crypto-js": "^4.2.0",
     "find-free-port": "^2.0.0",
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-calendar": "^5.0.0",
+    "react-datepicker": "^7.1.0",
     "react-dom": "^18.3.1",
+    "react-google-charts": "^4.0.1",
     "react-router-dom": "^6.23.1",
     "react-spring": "^9.7.3",
     "recoil": "^0.7.7",

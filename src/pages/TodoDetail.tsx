@@ -1,27 +1,47 @@
 import { string } from "prop-types";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from 'react-router-dom';
 import {
-  Button,
+  DatePicker,
   Input,
   Icon,
   List,
-  Radio,
+  Checkbox,
   Modal,
   useNavigate,
 } from "zmp-ui";
 
+interface Job {
+  id: string; // Thêm trường id
+  job: string;
+  date: string;
+  status: boolean;
+  subtasks: { text: string; StatusTask: boolean }[];
+}
+
 const TodoDetail: React.FunctionComponent = () => {
-  const { index } = useParams();
+  const { id } = useParams<{ id: string }>(); // Sử dụng id thay vì index
   const { Item } = List;
-  const jobs = JSON.parse(localStorage.getItem('jobs') as string);
-  const job = jobs[index as string];
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [job, setJob] = useState<Job | null>(null);
   const [modalAdd, setModalAdd] = useState(false);
   const [subtask, setSubtask] = useState('');
   const [isEditingSubtask, setIsEditingSubtask] = useState(false);
-  const [currentSubtaskIndex, setCurrentSubtaskIndex] = useState(null);
+  const [currentSubtaskIndex, setCurrentSubtaskIndex] = useState<number | null>(null);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-  const [subtaskToDelete, setSubtaskToDelete] = useState(null);
+  const [subtaskToDelete, setSubtaskToDelete] = useState<number | null>(null);
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [newDate, setNewDate] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const storedJobs = JSON.parse(localStorage.getItem('jobs') || '[]') as Job[];
+    setJobs(storedJobs);
+    const currentJob = storedJobs.find(j => j.id === id);
+    if (currentJob) {
+      setJob(currentJob);
+      setNewDate(new Date(currentJob.date));
+    }
+  }, [id]);
 
   if (!job) {
     return <div>Dữ liệu không xác định</div>;
@@ -33,40 +53,79 @@ const TodoDetail: React.FunctionComponent = () => {
   };
 
   const handleSubmit = () => {
+    if (!job) return;
+
     const updatedJob = {
       ...job,
-      subtasks: isEditingSubtask
-        ? job.subtasks.map((st, i) => (i === currentSubtaskIndex ? subtask : st))
-        : [...(job.subtasks ?? []), subtask]
+      subtasks: isEditingSubtask && currentSubtaskIndex !== null
+        ? job.subtasks.map((st, i) => (i === currentSubtaskIndex ? { text: subtask, StatusTask: false } : st))
+        : [...job.subtasks, { text: subtask, StatusTask: false }]
     };
-    const updatedJobs = jobs.map((j, i) => i === parseInt(index as string) ? updatedJob : j);
+
+    const updatedJobs = jobs.map(j => j.id === job.id ? updatedJob : j);
     localStorage.setItem('jobs', JSON.stringify(updatedJobs));
+    setJobs(updatedJobs);
+    setJob(updatedJob);
     setSubtask('');
     setIsEditingSubtask(false);
     setCurrentSubtaskIndex(null);
     setModalAdd(false);
   };
 
-  const handleEditSubtask = (subtaskIndex) => {
-    setSubtask(job.subtasks[subtaskIndex]);
+  const handleEditSubtask = (subtaskIndex: number) => {
+    if (!job) return;
+    setSubtask(job.subtasks[subtaskIndex].text);
     setIsEditingSubtask(true);
     setCurrentSubtaskIndex(subtaskIndex);
     setModalAdd(true);
   };
 
-  const handleDeleteSubtask = (subtaskIndex) => {
+  const handleDeleteSubtask = (subtaskIndex: number) => {
     setSubtaskToDelete(subtaskIndex);
     setDeleteDialogVisible(true);
   };
 
   const confirmDeleteSubtask = () => {
+    if (!job || subtaskToDelete === null) return;
+
     const updatedJob = {
       ...job,
       subtasks: job.subtasks.filter((_, i) => i !== subtaskToDelete)
     };
-    const updatedJobs = jobs.map((j, i) => i === parseInt(index as string) ? updatedJob : j);
+    const updatedJobs = jobs.map(j => j.id === job.id ? updatedJob : j);
     localStorage.setItem('jobs', JSON.stringify(updatedJobs));
+    setJobs(updatedJobs);
+    setJob(updatedJob);
     setDeleteDialogVisible(false);
+  };
+
+  const handleCheckboxChange = (subtaskIndex: number) => {
+    if (!job) return;
+
+    const updatedJob = {
+      ...job,
+      subtasks: job.subtasks.map((st, i) =>
+        i === subtaskIndex ? { ...st, StatusTask: !st.StatusTask } : st
+      )
+    };
+    const updatedJobs = jobs.map(j => j.id === job.id ? updatedJob : j);
+    localStorage.setItem('jobs', JSON.stringify(updatedJobs));
+    setJobs(updatedJobs);
+    setJob(updatedJob);
+  };
+
+  const handleSaveDate = () => {
+    if (!job) return;
+
+    const updatedJob = {
+      ...job,
+      date: newDate.toISOString()
+    };
+    const updatedJobs = jobs.map(j => j.id === job.id ? updatedJob : j);
+    localStorage.setItem('jobs', JSON.stringify(updatedJobs));
+    setJobs(updatedJobs);
+    setJob(updatedJob);
+    setShowDateModal(false);
   };
 
   return (
@@ -97,11 +156,15 @@ const TodoDetail: React.FunctionComponent = () => {
                 {job.subtasks.map((subtask, idx) => (
                   <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <Radio
+                      <Checkbox
                         size="small"
-                        name="small-1"
+                        checked={subtask.StatusTask}
+                        value={idx}
+                        onChange={() => handleCheckboxChange(idx)}
                       />
-                      {subtask}
+                      <span style={{ marginLeft: '12px' }}>
+                        {subtask.text}
+                      </span>
                     </div>
 
                     <div>
@@ -141,6 +204,7 @@ const TodoDetail: React.FunctionComponent = () => {
       >
         <List>
           <Item className='expiration-date'
+            onClick={() => setShowDateModal(true)}
             title="Ngày hết hạn"
             suffix={
               <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -150,6 +214,32 @@ const TodoDetail: React.FunctionComponent = () => {
             }
           />
         </List>
+        <Modal
+          visible={showDateModal}
+          title="Chọn ngày hết hạn mới"
+          onClose={() => setShowDateModal(false)}
+          actions={[
+            {
+              text: "Cancel",
+              onClick: () => setShowDateModal(false),
+            },
+            {
+              text: "Save",
+              onClick: handleSaveDate,
+              highLight: true,
+            },
+          ]}
+        >
+          <DatePicker
+            label='Ngày hết hạn'
+            title='Ngày hết hạn'
+            dateFormat='dd/mm/yyyy'
+            value={newDate}
+            onChange={(date) => setNewDate(date)}
+            mask
+            maskClosable
+          />
+        </Modal>
       </div>
 
       <div className="action-todo"
@@ -159,7 +249,6 @@ const TodoDetail: React.FunctionComponent = () => {
           marginBottom: '17px',
         }}
       >
-
       </div>
 
       <Modal

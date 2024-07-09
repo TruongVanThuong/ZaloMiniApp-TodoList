@@ -15,6 +15,7 @@ const FormPage: React.FunctionComponent = () => {
       text: "Display name updated!",
       type: "success",
     });
+    localStorage.setItem('displayName', displayName); // Lưu giá trị của displayName vào localStorage
     navigate(-1);
   };
 

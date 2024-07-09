@@ -4,67 +4,180 @@ import {
   Input,
   Icon,
   List,
-  Radio,
+  Select,
   Modal,
   Box,
   useNavigate,
+  Checkbox,
+  Tabs,
 } from "zmp-ui";
+import CryptoJS from 'crypto-js';
+import '../../public/css/todo.css';
 
 const { Item } = List;
+const { OtpGroup, Option } = Select;
+
+interface Job {
+  id: string;
+  job: string;
+  date: string;
+  status: boolean;
+  categories: number[];
+  subtasks: { StatusTask: boolean }[];
+}
+
+interface Category {
+  id: number;
+  name: string;
+}
+
 
 const Todo: React.FunctionComponent = () => {
+
   const navigate = useNavigate();
   const [job, setJob] = useState('');
   const [jobs, setJobs] = useState(() => {
     const storageJobs = JSON.parse(localStorage.getItem('jobs') ?? '[]');
-    return storageJobs;
+    return storageJobs.map((job: Job) => ({
+      ...job,
+      categories: job.categories || [],
+      subtasks: job.subtasks || [] // Ensure subtasks is always an array
+    }));
   });
+  const [activeTab, setActiveTab] = useState('0');
+  const [filteredJobs, setFilteredJobs] = useState<Job[]>(jobs);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   // modal add
   const [dialogVisible, setDialogVisible] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-  const [jobToDelete, setJobToDelete] = useState(null);
+  const [jobToDelete, setJobToDelete] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
 
   useEffect(() => {
     localStorage.setItem('jobs', JSON.stringify(jobs));
+    const storedCategories = JSON.parse(localStorage.getItem("categories") as string);
+    if (storedCategories) {
+      setCategories(storedCategories);
+    }
+    // Không cần cập nhật filteredJobs ở đây nữa
   }, [jobs]);
 
-  const handleSubmit = () => {
-    const currentDate = new Date();
-    const jobWithDate = { job, date: currentDate.toISOString() };
-
-    if (isEditing) {
-      const updatedJobs = jobs.map((item, index) =>
-        index === currentIndex ? jobWithDate : item
-      );
-      setJobs(updatedJobs);
-      setIsEditing(false);
-      setCurrentIndex(null);
+  useEffect(() => {
+    if (activeTab === '0') {
+      setFilteredJobs(jobs);
     } else {
-      setJobs(prev => [...prev, jobWithDate]);
+      const newFilteredJobs = jobs.filter(job => job.categories && job.categories.includes(parseInt(activeTab)));
+      setFilteredJobs(newFilteredJobs);
     }
+  }, [activeTab, jobs]);
+
+  // const handleSubmit = () => {
+  //   const currentDate = new Date();
+  //   const jobWithDate = {
+  //     job,
+  //     id: Date.now().toString(),
+  //     date: currentDate.toISOString(),
+  //     status: false,
+  //     categories: selectedCategories,
+  //     subtasks: []
+  //   };
+
+  //   if (isEditing) {
+  //     const updatedJobs = jobs.map((item, index) => {
+  //       if (index === currentIndex) {
+  //         // Giữ nguyên mảng subtasks hiện tại
+  //         return {
+  //           job,
+  //           date: item.date,
+  //           status: item.status,
+  //           subtasks: item.subtasks,
+  //           categories: item.categories,
+  //         };
+  //       }
+  //       return item;
+  //     });
+  //     setJobs(updatedJobs);
+  //     setIsEditing(false);
+  //     setCurrentIndex(null);
+
+  //   } else {
+  //     setJobs(prev => [...prev, jobWithDate]);
+  //   }
+  //   setJob('');
+  //   setSelectedCategories([]);
+
+  //   setDialogVisible(false);
+  // };
+  const handleSubmit = () => {
+    let updatedJobs;
+    if (isEditing) {
+      updatedJobs = jobs.map(item => {
+        if (item.id === currentJobId) {
+          return {
+            ...item,
+            job,
+            categories: selectedCategories,
+          };
+        }
+        return item;
+      });
+    } else {
+      const newJob = {
+        id: Date.now().toString(),
+        job,
+        date: new Date().toISOString(),
+        status: false,
+        categories: selectedCategories,
+        subtasks: []
+      };
+      updatedJobs = [...jobs, newJob];
+    }
+
+    setJobs(updatedJobs);
+
+    // Cập nhật filteredJobs
+    if (activeTab === '0') {
+      setFilteredJobs(updatedJobs);
+    } else {
+      const newFilteredJobs = updatedJobs.filter(job =>
+        job.categories && job.categories.includes(parseInt(activeTab))
+      );
+      setFilteredJobs(newFilteredJobs);
+    }
+
     setJob('');
+    setSelectedCategories([]);
+    setIsEditing(false);
+    setCurrentJobId(null);
     setDialogVisible(false);
   };
 
-  const handleEdit = (index) => {
-    setJob(jobs[index].job);
-    setIsEditing(true);
-    setCurrentIndex(index);
-    setDialogVisible(true);
+  const handleEdit = (id: string) => {
+    const jobToEdit = jobs.find(job => job.id === id);
+    if (jobToEdit) {
+      setJob(jobToEdit.job);
+      setSelectedCategories(jobToEdit.categories); // Thêm dòng này
+      setIsEditing(true);
+      setCurrentJobId(id); // Thay vì lưu index, lưu id
+      setDialogVisible(true);
+    }
   };
 
-  const handleDelete = (index) => {
-    setJobToDelete(index);
+  const handleDelete = (id: string) => {
+    setJobToDelete(id);
     setDeleteDialogVisible(true);
   };
 
   const confirmDelete = () => {
-    const updatedJobs = jobs.filter((_, i) => i !== jobToDelete);
-    setJobs(updatedJobs);
-    setDeleteDialogVisible(false);
+    if (jobToDelete !== null) {
+      const updatedJobs = jobs.filter(job => job.id !== jobToDelete);
+      setJobs(updatedJobs);
+      setDeleteDialogVisible(false);
+      setJobToDelete(null); // Reset jobToDelete sau khi xóa
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -72,27 +185,78 @@ const Todo: React.FunctionComponent = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  const handleItemClick = (index) => {
-    navigate(`/todo/${index}`);
+  const [isCompletedList, setIsCompletedList] = useState(jobs.map(() => false));
+
+  const handleCheckboxChange = (id: string) => {
+    const updatedJobs = jobs.map(job =>
+      job.id === id ? { ...job, status: !job.status } : job
+    );
+    setJobs(updatedJobs);
+    localStorage.setItem('jobs', JSON.stringify(updatedJobs));
+
+    if (activeTab === '0') {
+      setFilteredJobs(updatedJobs);
+    } else {
+      const newFilteredJobs = updatedJobs.filter(job =>
+        job.categories && job.categories.includes(parseInt(activeTab))
+      );
+      setFilteredJobs(newFilteredJobs);
+    }
+  };
+
+  const handleTabChange = (index: string) => {
+    setActiveTab(index);
+
+    if (index !== '0') {
+      const filteredJobs = jobs.filter(job => job.categories && job.categories.includes(parseInt(index)));
+      setFilteredJobs(filteredJobs);
+      console.log(index)
+    } else {
+      console.log(index)
+      setFilteredJobs(jobs);
+    }
   };
 
 
   return (
     <div style={{ padding: '12px' }}>
+
+      <div className="categories">
+        <div className="tabs-container">
+          <Tabs activeKey={activeTab} onChange={handleTabChange}>
+            <Tabs.Tab key="0" label="Tất cả" />
+            {categories.map((category, index) => (
+              <Tabs.Tab key={category.id} label={category.name} />
+            ))}
+          </Tabs>
+        </div>
+        <div>
+          <button onClick={() => navigate(`/todo-category`)}>
+            <Icon icon="zi-more-grid" />
+          </button>
+        </div>
+      </div>
+
+
       <List>
-        {jobs.map((jobObj, index) => (
+        {filteredJobs.map((jobObj) => (
           <List.Item
+            key={jobObj.id}
             style={{
               alignItems: "center",
               backgroundColor: "#fff"
             }}
             prefix={
               <div onClick={(e) => e.stopPropagation()}>
-                <Radio size="small" name="small-1" />
+                <Checkbox
+                  size="small"
+                  checked={jobObj.status}
+                  value={jobObj.id}
+                  onChange={() => handleCheckboxChange(jobObj.id)}
+                />
               </div>
             }
-            key={index}
-            onClick={() => handleItemClick(index)}
+            onClick={() => navigate(`/todo/${jobObj.id}`)}
             title={jobObj.job}
             subTitle={formatDate(jobObj.date)}
             suffix={
@@ -100,7 +264,7 @@ const Todo: React.FunctionComponent = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleEdit(index);
+                    handleEdit(jobObj.id);
                   }}
                 >
                   <Icon icon="zi-post" />
@@ -108,7 +272,7 @@ const Todo: React.FunctionComponent = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(index);
+                    handleDelete(jobObj.id);
                   }}
                 >
                   <Icon icon="zi-delete" />
@@ -131,7 +295,7 @@ const Todo: React.FunctionComponent = () => {
           }}
           style={{
             position: 'fixed',
-            bottom: '70px',
+            bottom: '120px',
             right: '20px',
             minWidth: '24px',
             width: '24px !important',
@@ -178,6 +342,17 @@ const Todo: React.FunctionComponent = () => {
             onChange={e => setJob(e.target.value)}
             placeholder="nhiệm vụ"
           />
+          <Select
+            placeholder="Chọn danh mục"
+            multiple
+            defaultValue={[]}
+            value={selectedCategories}
+            onChange={(value: number[]) => setSelectedCategories(value)}
+          >
+            {categories.map((category, index) => (
+              <Option key={index} value={category.id} title={category.name} />
+            ))}
+          </Select>
         </div>
       </Modal>
 

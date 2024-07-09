@@ -12,6 +12,6 @@ export const userState = selector({
 
 export const displayNameState = atom({
   key: "displayName",
-  default: "",
+  default: localStorage.getItem('displayName') || "", // Lấy giá trị từ localStorage hoặc sử dụng chuỗi rỗng nếu không có
 });
 
